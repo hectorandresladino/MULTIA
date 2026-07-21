@@ -1,5 +1,6 @@
 FROM node:22-bookworm-slim AS frontend-build
 WORKDIR /app
+RUN npm install -g npm@11 --no-audit --no-fund
 COPY frontend/package.json frontend/package-lock.json ./frontend/
 RUN npm --prefix frontend ci --ignore-scripts --no-audit --no-fund
 COPY frontend ./frontend
@@ -9,6 +10,7 @@ RUN npm --prefix frontend run build
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /opt/app
+RUN npm install -g npm@11 --no-audit --no-fund
 COPY backend/package.json backend/package-lock.json ./backend/
 RUN npm --prefix backend ci --omit=dev --ignore-scripts --no-audit --no-fund \
     && chgrp -R 0 /opt/app \

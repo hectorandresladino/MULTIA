@@ -79,11 +79,11 @@ spec:
       name: multia-image:latest
   resources:
     requests:
-      memory: "256Mi"
-      cpu: "100m"
+      memory: "512Mi"
+      cpu: "250m"
     limits:
-      memory: "1Gi"
-      cpu: "500m"
+      memory: "2Gi"
+      cpu: "1"
   triggers:
     - type: ConfigChange
 
