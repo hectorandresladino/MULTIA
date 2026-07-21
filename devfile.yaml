@@ -1,0 +1,70 @@
+schemaVersion: 2.2.0
+metadata:
+  name: multia
+  displayName: MULTIA
+  description: Chat multi-agente con React, Vite y Node.js
+  tags:
+    - NodeJS
+    - React
+    - Vite
+    - AI
+    - Chat
+  projectType: nodejs
+  language: TypeScript
+components:
+  - name: nodejs
+    container:
+      image: registry.redhat.io/devfile/nodejs-community:latest
+      memoryLimit: 4Gi
+      cpuLimit: 2000m
+      cpuRequest: 1000m
+      mountSources: true
+      endpoints:
+        - name: app
+          targetPort: 3000
+          exposure: public
+        - name: vite-dev
+          targetPort: 5173
+          exposure: public
+      env:
+        - name: NODE_ENV
+          value: development
+commands:
+  - id: install
+    exec:
+      component: nodejs
+      commandLine: npm install
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: build
+        isDefault: true
+  - id: build
+    exec:
+      component: nodejs
+      commandLine: npm run build
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: build
+  - id: run-dev
+    exec:
+      component: nodejs
+      commandLine: npm run dev -- --host
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: run
+        isDefault: true
+  - id: run-server
+    exec:
+      component: nodejs
+      commandLine: npm run server
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: run
+  - id: test
+    exec:
+      component: nodejs
+      commandLine: npm test
+      workingDir: ${PROJECT_SOURCE}
+      group:
+        kind: test
+        isDefault: true

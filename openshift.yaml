@@ -1,0 +1,259 @@
+# ============================================================
+# MULTIA - RED HAT OPENSHIFT DEVELOPER SANDBOX
+# SOLO CREA RECURSOS DE MULTIA
+#
+# Repositorio:
+# https://github.com/hectorandresladino/MULTIA.git
+#
+# Este archivo NO crea ni modifica:
+# - PostgreSQL externo
+# - Recursos de PH Transparente
+# - Roles, ClusterRoles o permisos administrativos
+# - Namespace o Project
+#
+# Estructura esperada:
+# - frontend/package.json
+# - backend/package.json
+# - Dockerfile en la raiz
+# - aplicacion escuchando en PORT=3000 y HOST=0.0.0.0
+#
+# La opcion predeterminada "IA Web sin clave" no necesita Secret.
+# El Secret multia-api-keys es opcional y solo se usa para proveedores externos.
+# ============================================================
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: multia-data-pvc
+  labels:
+    app: multia-app
+    app.kubernetes.io/name: multia
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+apiVersion: image.openshift.io/v1
+kind: ImageStream
+metadata:
+  name: multia-image
+  labels:
+    app: multia-app
+    app.kubernetes.io/name: multia
+    app.kubernetes.io/instance: multia
+    app.kubernetes.io/part-of: multia
+spec:
+  lookupPolicy:
+    local: true
+
+---
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: multia-build
+  labels:
+    app: multia-app
+    app.kubernetes.io/name: multia
+    app.kubernetes.io/instance: multia
+    app.kubernetes.io/part-of: multia
+spec:
+  runPolicy: Serial
+  source:
+    type: Git
+    git:
+      uri: "https://github.com/hectorandresladino/MULTIA.git"
+      ref: "master"
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+      buildArgs:
+        - name: VITE_USE_PROXY
+          value: "true"
+  output:
+    to:
+      kind: ImageStreamTag
+      name: multia-image:latest
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "100m"
+    limits:
+      memory: "1Gi"
+      cpu: "500m"
+  triggers:
+    - type: ConfigChange
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: multia-app
+  labels:
+    app: multia-app
+    app.kubernetes.io/name: multia
+    app.kubernetes.io/instance: multia
+    app.kubernetes.io/part-of: multia
+  annotations:
+    image.openshift.io/triggers: >-
+      [{"from":{"kind":"ImageStreamTag","name":"multia-image:latest"},"fieldPath":"spec.template.spec.containers[?(@.name==\"multia\")].image","paused":false}]
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: multia-app
+  template:
+    metadata:
+      labels:
+        app: multia-app
+        app.kubernetes.io/name: multia
+        app.kubernetes.io/instance: multia
+        app.kubernetes.io/part-of: multia
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: multia
+          image: multia-image:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PROXY_REQUESTS_PER_MINUTE
+              value: "30"
+            - name: BUILDER_REQUESTS_PER_MINUTE
+              value: "12"
+            - name: DOWNLOAD_TICKET_TTL_MS
+              value: "1800000"
+            - name: LOCATION_REQUESTS_PER_MINUTE
+              value: "10"
+            - name: WEBSITE_AUDIT_REQUESTS_PER_MINUTE
+              value: "3"
+            - name: WEBSITE_AUDIT_REQUESTS_PER_DAY
+              value: "20"
+            - name: SECURITY_ARTIFACT_REQUESTS_PER_MINUTE
+              value: "5"
+            - name: SECURITY_ARTIFACT_REQUESTS_PER_DAY
+              value: "30"
+            - name: NOMINATIM_USER_AGENT
+              value: "MULTIA/4.0 robust-platform"
+            - name: AUTH_REQUIRED
+              value: "true"
+            - name: SESSION_TTL_HOURS
+              value: "12"
+            - name: MULTIA_DB_PATH
+              value: "/var/lib/multia/multia.db"
+            - name: WORKSPACE_ROOT
+              value: "/var/lib/multia/workspaces"
+            - name: WORKSPACE_TTL_MINUTES
+              value: "120"
+            - name: WORKSPACE_MAX_FILES
+              value: "300"
+            - name: WORKSPACE_MAX_BYTES
+              value: "25000000"
+          envFrom:
+            - secretRef:
+                name: multia-api-keys
+                optional: true
+            - secretRef:
+                name: multia-auth-secrets
+                optional: true
+          volumeMounts:
+            - name: multia-data
+              mountPath: /var/lib/multia
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 6
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "768Mi"
+              cpu: "500m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+      volumes:
+        - name: multia-data
+          persistentVolumeClaim:
+            claimName: multia-data-pvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: multia-service
+  labels:
+    app: multia-app
+    app.kubernetes.io/name: multia
+    app.kubernetes.io/instance: multia
+    app.kubernetes.io/part-of: multia
+spec:
+  type: ClusterIP
+  selector:
+    app: multia-app
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+      protocol: TCP
+
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: multia-route
+  annotations:
+    haproxy.router.openshift.io/timeout: 5m
+  labels:
+    app: multia-app
+    app.kubernetes.io/name: multia
+    app.kubernetes.io/instance: multia
+    app.kubernetes.io/part-of: multia
+spec:
+  to:
+    kind: Service
+    name: multia-service
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

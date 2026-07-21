@@ -1,0 +1,17 @@
+{
+  "name": "multia-backend",
+  "version": "4.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "esbuild": "^0.25.0",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "http-proxy-middleware": "^3.0.7"
+  }
+}
